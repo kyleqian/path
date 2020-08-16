@@ -14,6 +14,9 @@ public class 道Manager : MonoBehaviour
     [SerializeField] private Camera CAMERA;
     [SerializeField] private PathCreator PATH_CREATOR;
     [SerializeField] private GameObject TOUCH_DEBUG;
+    [SerializeField] private Transform START_POINT;
+    [SerializeField] private Transform END_POINT;
+    [SerializeField] private GameObject WINNER_UI;
 #pragma warning restore 0649
 
 #pragma warning disable 0414, IDE0052
@@ -22,19 +25,39 @@ public class 道Manager : MonoBehaviour
     private Color succeessBackGroundColor_ = new Color(0.416f, 0.921f, 0.506f);
     private Color failureBackgroundColor_ = new Color(0.921f, 0.506f, 0.416f);
 
+    private float startRadius_;
+    private float endRadius_;
+    private bool isStarted_ = false;
     private bool canTouchDown_ = false;
     private bool isTouchDown_ = false;
     private float secondsSpentOffPath_ = 0;
     private int sceneFrameCount_ = 0;
+    private bool hasWon_ = false;
+
+    private void Start()
+    {
+        Debug.Assert(START_POINT.position.z == 0);
+        Debug.Assert(END_POINT.position.z == 0);
+        WINNER_UI.SetActive(false);
+        startRadius_ = START_POINT.GetComponent<Renderer>().bounds.extents.magnitude;
+        endRadius_ = END_POINT.GetComponent<Renderer>().bounds.extents.magnitude;
+    }
 
     private void Update()
     {
         ++sceneFrameCount_;
+
+        if (hasWon_)
+        {
+            return;
+        }
+
         Vector3? touchPointOpt = GetTouchPoint();
         bool currTouchDown = touchPointOpt != null;
 
         if (!currTouchDown)
         {
+            // If player lifts finger while playing
             if (isTouchDown_)
             {
                 ResetGame();
@@ -54,13 +77,31 @@ public class 道Manager : MonoBehaviour
         }
 
         isTouchDown_ = true;
-        Vector3 touchPoint = (Vector3)touchPointOpt;
+        var touchPoint = (Vector3)touchPointOpt;
         TOUCH_DEBUG.SetActive(DEBUG_MODE);
         TOUCH_DEBUG.transform.position = touchPoint;
-        Vector3 pathclosestPoint = PATH_CREATOR.path.GetClosestPointOnPath(touchPoint);
 
-        if (Vector3.Distance(touchPoint, pathclosestPoint) < MAX_DISTANCE_ALLOWED_FROM_PATH)
+        var pathclosestPoint = PATH_CREATOR.path.GetClosestPointOnPath(touchPoint);
+        var distanceFromStart = Vector3.Distance(touchPoint, START_POINT.position);
+
+        if (!isStarted_)
         {
+            if (distanceFromStart > startRadius_)
+            {
+                ResetGame();
+            }
+            isStarted_ = true;
+        }
+
+        var distanceFromPath = Vector3.Distance(touchPoint, pathclosestPoint);
+        var distanceFromEnd = Vector3.Distance(touchPoint, END_POINT.position);
+
+        if (distanceFromStart < startRadius_ || distanceFromPath < MAX_DISTANCE_ALLOWED_FROM_PATH)
+        {
+            if (distanceFromEnd < endRadius_)
+            {
+                YouWin();
+            }
             CAMERA.backgroundColor = succeessBackGroundColor_;
         }
         else
@@ -116,5 +157,12 @@ public class 道Manager : MonoBehaviour
     private void ResetGame()
     {
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+    }
+
+    private void YouWin()
+    {
+        hasWon_ = true;
+        WINNER_UI.SetActive(true);
+        Invoke(nameof(ResetGame), 7);
     }
 }
