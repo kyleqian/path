@@ -9,10 +9,12 @@ public class 道Manager : MonoBehaviour
     [SerializeField] bool DEBUG_MODE;
     [SerializeField] float MAX_SECONDS_ALLOWED_OFF_PATH = 0.5f;
     [SerializeField] float MAX_DISTANCE_ALLOWED_FROM_PATH = 0.5f;
+    [SerializeField] int BLUR_PIXEL_DISTANCE = 25;
 
     [Header("Runtime References")]
     [SerializeField] private Camera CAMERA;
     [SerializeField] private PathCreator PATH_CREATOR;
+    [SerializeField] private MeshRenderer ROAD_RENDERER;
     [SerializeField] private GameObject TOUCH_DEBUG;
     [SerializeField] private Transform START_POINT;
     [SerializeField] private Transform END_POINT;
@@ -24,6 +26,7 @@ public class 道Manager : MonoBehaviour
 #pragma warning restore 0414, IDE0052
     private Color succeessBackGroundColor_ = new Color(0.416f, 0.921f, 0.506f);
     private Color failureBackgroundColor_ = new Color(0.921f, 0.506f, 0.416f);
+    private Material roadRendererMaterial_;
 
     private float startRadius_;
     private float endRadius_;
@@ -41,6 +44,10 @@ public class 道Manager : MonoBehaviour
         WINNER_UI.SetActive(false);
         startRadius_ = START_POINT.GetComponent<Renderer>().bounds.extents.magnitude;
         endRadius_ = END_POINT.GetComponent<Renderer>().bounds.extents.magnitude;
+
+        // Makes a copy
+        roadRendererMaterial_ = ROAD_RENDERER.material;
+        roadRendererMaterial_.SetInt("_BlurDist", BLUR_PIXEL_DISTANCE);
     }
 
     private void Update()
@@ -52,7 +59,7 @@ public class 道Manager : MonoBehaviour
             return;
         }
 
-        Vector3? touchPointOpt = GetTouchPoint();
+        Vector3? touchPointOpt = GetTouchScreenSpace();
         bool currTouchDown = touchPointOpt != null;
 
         if (!currTouchDown)
@@ -77,9 +84,15 @@ public class 道Manager : MonoBehaviour
         }
 
         isTouchDown_ = true;
-        var touchPoint = (Vector3)touchPointOpt;
+
+        var touchPoint = CAMERA.ScreenToWorldPoint((Vector3)touchPointOpt);
+        touchPoint.z = 0;
+
         TOUCH_DEBUG.SetActive(DEBUG_MODE);
         TOUCH_DEBUG.transform.position = touchPoint;
+
+        roadRendererMaterial_.SetFloat("_UserX", ((Vector2)touchPointOpt).x);
+        roadRendererMaterial_.SetFloat("_UserY", ((Vector2)touchPointOpt).y);
 
         var pathclosestPoint = PATH_CREATOR.path.GetClosestPointOnPath(touchPoint);
         var distanceFromStart = Vector3.Distance(touchPoint, START_POINT.position);
@@ -123,7 +136,7 @@ public class 道Manager : MonoBehaviour
         }
     }
 
-    private Vector3? GetTouchPoint()
+    private Vector2? GetTouchScreenSpace()
     {
 #if UNITY_IOS && !UNITY_EDITOR
         if (Input.touchCount != 1)
@@ -149,9 +162,7 @@ public class 道Manager : MonoBehaviour
 #endif
 
         touchBegan_ = true;
-        Vector3 touchPoint = CAMERA.ScreenToWorldPoint(touchScreenPosition);
-        touchPoint.z = 0;
-        return touchPoint;
+        return touchScreenPosition;
     }
 
     private void ResetGame()
